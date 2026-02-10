@@ -6,27 +6,38 @@ from datetime import datetime
 # 1. 페이지 설정
 st.set_page_config(page_title="세창 거래처 맵 Pro", layout="wide")
 
-# 2. 스타일 설정 (제목 잘림 방지 및 모바일 최적화)
+# 2. 스타일 설정 (우측 상단 알림 배지 디자인 추가)
 st.markdown("""
     <style>
     .block-container { padding-top: 2.5rem !important; } 
-    .title-area { 
-        padding: 20px 0 15px 0; 
-        text-align: center; 
-        width: 100%; 
-        overflow: visible; 
+    .title-area { padding: 20px 0 15px 0; text-align: center; width: 100%; overflow: visible; }
+    .main-title { font-size: 1.4rem !important; font-weight: bold; color: #1E3A5F; line-height: 1.6; display: block; letter-spacing: -0.5px; }
+    
+    /* 카드 헤더 레이아웃 (이름과 알림을 한 줄에) */
+    .card-header { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: flex-start; 
+        margin-bottom: 8px;
+        min-height: 40px;
     }
-    .main-title { 
-        font-size: 1.4rem !important; 
-        font-weight: bold; 
-        color: #1E3A5F; 
-        line-height: 1.6; 
-        display: block; 
-        letter-spacing: -0.5px;
+    
+    .client-name-small { font-size: 1.0rem !important; font-weight: bold; color: #333; margin: 0; line-height: 1.3; }
+    
+    /* 우측 상단 알림 배지 스타일 */
+    .visit-badge {
+        font-size: 0.75rem;
+        padding: 2px 8px;
+        border-radius: 5px;
+        font-weight: bold;
+        white-space: nowrap;
+        margin-left: 10px;
     }
-    .client-name-small { font-size: 1.0rem !important; font-weight: bold; color: #333; margin-top: 5px; margin-bottom: 2px; }
-    .item-tag { display: inline-block; background-color: #e1f5fe; color: #01579b; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-right: 4px; font-weight: bold; }
-    .dept-red { color: #e74c3c; font-weight: bold; font-size: 0.9rem; }
+    .badge-red { background-color: #ffebee; color: #d32f2f; border: 1px solid #ffcdd2; }
+    .badge-yellow { background-color: #fff9c4; color: #f57f17; border: 1px solid #fff59d; }
+    .badge-green { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+
+    .item-tag { display: inline-block; background-color: #e1f5fe; color: #01579b; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-right: 4px; font-weight: bold; margin-bottom: 4px; }
     .info-box { background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 4px solid #1E3A5F; }
     .info-title { font-size: 0.85rem; font-weight: bold; color: #555; margin-bottom: 3px; }
     .info-content { font-size: 0.85rem; color: #333; margin-bottom: 8px; }
@@ -42,7 +53,6 @@ def get_chosung(text):
     if 0 <= char_code <= 11171: return CHOSUNG_LIST[char_code // 588]
     return str(text)[0].upper()
 
-# 3. 데이터 로드
 url = "https://docs.google.com/spreadsheets/d/1mo031g1DVN-pcJIXk3it6eLbJrSlezH0gIUnKHaQ698/edit?usp=sharing"
 st.markdown('<div class="title-area"><span class="main-title">🏢 세창 거래처 통합 관리 시스템</span></div>', unsafe_allow_html=True)
 
@@ -50,11 +60,9 @@ try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df = conn.read(spreadsheet=url, ttl=0).fillna("")
 
-    # 날짜 데이터 처리
     if '마지막 방문일' in df.columns:
         df['마지막 방문일'] = pd.to_datetime(df['마지막 방문일'], errors='coerce')
 
-    # 4. 사이드바
     with st.sidebar:
         st.header("📍 상세 검색")
         if st.button("🔄 데이터 최신화"):
@@ -64,7 +72,6 @@ try:
         sel_region = st.selectbox("🌍 지역 선택", [r for r in regions if r])
         search_q = st.text_input("🔍 거래처명 검색", placeholder="검색어 입력...")
 
-    # 5. 가나다 탭
     chosung_list = ["전체", "ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ", "ㅂ", "ㅅ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ", "A-Z"]
     tabs = st.tabs(chosung_list)
 
@@ -88,17 +95,22 @@ try:
                         
                         with cols[j]:
                             with st.container(border=True):
-                                # [수정] 마지막 방문일이 있는 경우에만 메시지 표시
+                                # --- 알림 배지 로직 생성 ---
+                                badge_html = ""
                                 if '마지막 방문일' in item and pd.notnull(item['마지막 방문일']):
                                     last_date = item['마지막 방문일'].to_pydatetime()
-                                    today = datetime.now()
-                                    diff = (today - last_date).days
-                                    if diff >= 30: st.error(f"🚨 {diff}일 경과")
-                                    elif diff >= 20: st.warning(f"🟡 {diff}일 지남")
-                                    else: st.success(f"✅ {diff}일 (안정)")
-                                # 날짜가 없으면 아무런 st.info 등을 띄우지 않고 통과합니다.
+                                    diff = (datetime.now() - last_date).days
+                                    if diff >= 30: badge_html = f'<span class="visit-badge badge-red">🚨 {diff}일</span>'
+                                    elif diff >= 20: badge_html = f'<span class="visit-badge badge-yellow">🟡 {diff}일</span>'
+                                    else: badge_html = f'<span class="visit-badge badge-green">✅ {diff}일</span>'
 
-                                st.markdown(f'<p class="client-name-small">{item["거래처명"]}</p>', unsafe_allow_html=True)
+                                # --- 이름과 배지를 한 줄에 배치 ---
+                                st.markdown(f"""
+                                    <div class="card-header">
+                                        <p class="client-name-small">{item["거래처명"]}</p>
+                                        {badge_html}
+                                    </div>
+                                """, unsafe_allow_html=True)
                                 
                                 if '취급품목' in item and item['취급품목']:
                                     tag_html = "".join([f'<span class="item-tag">{t.strip()}</span>' for t in str(item['취급품목']).split(',')])
@@ -110,32 +122,17 @@ try:
                                 with st.expander("👤 상세 정보/메모"):
                                     depts, names, phones = str(item.get('부서명','')).split('\n'), str(item.get('담당자','')).split('\n'), str(item.get('연락처','')).split('\n')
                                     for k in range(max(len(depts), len(names), len(phones))):
-                                        d = depts[k].strip() if k < len(depts) else "-"
-                                        n = names[k].strip() if k < len(names) else "-"
-                                        p = phones[k].strip() if k < len(phones) else "-"
-                                        st.markdown(f'<div class="contact-card"><span class="dept-red">{k+1}. {d}</span><br>{n} / <a href="tel:{p}" style="color:#333; text-decoration:none;">{p}</a></div>', unsafe_allow_html=True)
+                                        d, n, p = (depts[k] if k<len(depts) else "-"), (names[k] if k<len(names) else "-"), (phones[k] if k<len(phones) else "-")
+                                        st.markdown(f'<div class="contact-card"><span style="color:#e74c3c; font-weight:bold;">{k+1}. {d}</span><br>{n} / <a href="tel:{p}" style="color:#333; text-decoration:none;">{p}</a></div>', unsafe_allow_html=True)
                                     
-                                    parking = item.get('주차 및 진입 정보', '정보 없음')
-                                    issue = item.get('거래처 성향 / 특이사항', '내용 없음')
+                                    parking, issue = item.get('주차 및 진입 정보', '정보 없음'), item.get('거래처 성향 / 특이사항', '내용 없음')
+                                    st.markdown(f'<div class="info-box"><div class="info-title">🚗 주차 정보</div><div class="info-content">{parking}</div><div class="info-title">⚠️ 특이사항</div><div class="info-content">{issue}</div></div>', unsafe_allow_html=True)
                                     
-                                    st.markdown(f"""
-                                    <div class="info-box">
-                                        <div class="info-title">🚗 주차 및 진입 정보</div>
-                                        <div class="info-content">{parking if parking else "정보 없음"}</div>
-                                        <div class="info-title">⚠️ 거래처 성향/특이사항</div>
-                                        <div class="info-content">{issue if issue else "내용 없음"}</div>
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                    
-                                    st.text_area("📝 메모 기록", key=f"memo_{unique_id}", height=70)
-                                    st.markdown("---")
-                                    uploaded_file = st.file_uploader(f"📷 사진 업로드", type=['jpg', 'png', 'jpeg'], key=f"up_{unique_id}")
-                                    if uploaded_file:
-                                        st.image(uploaded_file, caption="업로드 사진", use_container_width=True)
-
+                                    st.text_area("📝 메모", key=f"m_{unique_id}", height=70)
+                                    uploaded_file = st.file_uploader(f"📷 사진", type=['jpg','png','jpeg'], key=f"u_{unique_id}")
+                                    if uploaded_file: st.image(uploaded_file, use_container_width=True)
                                     img_url = item.get('이미지', '')
-                                    if img_url:
-                                        st.markdown(f'<a href="{img_url}" target="_blank"><img src="{img_url}" class="img-thumbnail" width="100"></a>', unsafe_allow_html=True)
+                                    if img_url: st.markdown(f'<a href="{img_url}" target="_blank"><img src="{img_url}" class="img-thumbnail" width="100"></a>', unsafe_allow_html=True)
 
 except Exception as e:
     st.error(f"오류: {e}")
