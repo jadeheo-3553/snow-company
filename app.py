@@ -5,27 +5,27 @@ import pandas as pd
 # 1. 페이지 설정
 st.set_page_config(page_title="거래처 관리 Pro", layout="wide")
 
-# 2. 스타일 설정 (상단 여백 최소화 및 기존 스타일 유지)
+# 2. 스타일 설정 (타이틀 잘림 방지 및 최적 여백)
 st.markdown("""
     <style>
-    /* 전체 컨테이너 여백 조정 */
-    .block-container { padding-top: 1rem !important; padding-bottom: 1rem !important; }
-    
-    /* [요청] 타이틀 상단 빈 공간 최소화 */
+    /* 상단 기본 여백 조정 */
+    .block-container { padding-top: 2rem !important; }
+
+    /* [요청] 글자가 잘리지 않는 최적의 여백 설정 */
     .title-area {
-        padding: 5px 0 10px 0; /* 위쪽 여백을 5px로 극소화 */
+        padding: 25px 0 15px 0; /* 글자가 잘리지 않도록 안전 여백 확보 */
         text-align: center;
         width: 100%;
     }
     .main-title { 
-        font-size: 1.7rem !important; 
+        font-size: 1.8rem !important; 
         font-weight: bold; 
         color: #1E3A5F;
-        margin: 0;
-        line-height: 1.2;
+        line-height: 1.4; /* 글자 높이 확보 */
+        display: block;
     }
     
-    /* 거래처명 글자 크기 (기존 반으로 줄인 상태 유지) */
+    /* 거래처명 글자 크기 유지 */
     .client-name-small {
         font-size: 1.0rem !important;
         font-weight: bold;
