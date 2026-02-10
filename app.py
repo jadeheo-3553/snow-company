@@ -6,7 +6,7 @@ import sys
 # 1. 시스템 설정
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
-st.set_page_config(page_title="거래처 관리 매니저", page_icon="🏢", layout="wide")
+st.set_page_config(page_title="거래처 관리 시스템", page_icon="🏢", layout="wide")
 
 # 2. 구글 시트 연결
 url = "https://docs.google.com/spreadsheets/d/1mo031g1DVN-pcJIXk3it6eLbJrSlezH0gIUnKHaQ698/edit?usp=sharing"
@@ -26,13 +26,13 @@ try:
     if search_query:
         df = df[df['거래처명'].str.contains(search_query, case=False, na=False)]
 
-    # 4. 리스트 출력
+    # 4. 리스트 출력 (텍스트 중심의 간결한 UI)
     if len(df) == 0:
-        st.warning("데이터가 없습니다.")
+        st.warning("검색 결과가 없습니다.")
     else:
-        st.caption(f"총 {len(df)}개의 거래처가 검색되었습니다.")
+        st.caption(f"총 {len(df)}개의 거래처가 있습니다.")
         
-        # PC에서는 3열, 모바일은 1열로 자동 전환
+        # PC에서는 3열, 모바일은 1열 자동 전환
         for i in range(0, len(df), 3):
             cols = st.columns(3)
             for j in range(3):
@@ -40,36 +40,41 @@ try:
                     row = df.iloc[i + j]
                     with cols[j]:
                         with st.container(border=True):
-                            # [변화 1] 가로 배치 레이아웃 (이미지 1 : 텍스트 3 비율)
-                            c1, c2 = st.columns([1, 3])
+                            # [목록] 이미지를 빼고 텍스트만 배치하여 공간 절약
+                            st.markdown(f"### {row['거래처명']}")
                             
-                            img_url = row['이미지']
-                            display_img = img_url if pd.notna(img_url) and str(img_url).startswith('http') else "https://via.placeholder.com/150/f0f2f6/666666?text=No"
+                            # 주소 클릭 시 네이버 지도 연결
+                            naver_url = f"https://map.naver.com/v5/search/{row['주소']}"
+                            st.markdown(f"📍 <a href='{naver_url}' style='text-decoration:none; color:#4A90E2; font-weight:bold;'>{row['주소']}</a>", unsafe_allow_html=True)
                             
-                            with c1:
-                                # 썸네일 크기 최적화
-                                st.markdown(f'<img src="{display_img}" style="width:100%; height:70px; object-fit:cover; border-radius:8px;">', unsafe_allow_html=True)
-                            
-                            with c2:
-                                st.markdown(f"**{row['거래처명']}**")
-                                # [변화 2] 주소 클릭 시 지도 바로 연결 (하이퍼링크 처리)
-                                naver_url = f"https://map.naver.com/v5/search/{row['주소']}"
-                                st.markdown(f"📍 <a href='{naver_url}' style='text-decoration:none; color:gray; font-size:0.9rem;'>{row['주소']}</a>", unsafe_allow_html=True)
-
-                            # [변화 3] 상세 정보 펼치면 큰 사진 등장
-                            with st.expander("📂 상세 정보 / 사진 확대"):
-                                st.image(display_img, caption=f"{row['거래처명']} 전경", use_container_width=True)
-                                st.divider()
+                            # 상세 정보 펼치기
+                            with st.expander("📄 상세 정보 및 사진 확인"):
+                                # 텍스트 정보를 상단에 배치
                                 for col in ['담당자', '전화번호', '이메일', '비고']:
                                     if col in df.columns and pd.notna(row[col]):
                                         st.write(f"**{col}:** {row[col]}")
                                 
-                                # 모바일용 큰 전화 버튼
+                                # 전화 걸기 버튼
                                 if '전화번호' in df.columns and pd.notna(row['전화번호']):
-                                    st.link_button(f"📞 담당자 전화 걸기", f"tel:{row['전화번호']}", use_container_width=True)
+                                    st.link_button(f"📞 담당자 연결", f"tel:{row['전화번호']}", use_container_width=True)
+                                
+                                st.divider()
+                                
+                                # 사진을 가장 아래에 배치 (클릭 시 확대 링크 포함)
+                                img_url = row['이미지']
+                                if pd.notna(img_url) and str(img_url).startswith('http'):
+                                    st.write("📷 **현장 사진 (클릭 시 확대)**")
+                                    # 사진 클릭 시 새 창에서 원본 이미지가 뜨도록 마크다운 처리
+                                    st.markdown(f'''
+                                        <a href="{img_url}" target="_blank">
+                                            <img src="{img_url}" style="width:100%; border-radius:10px;">
+                                        </a>
+                                    ''', unsafe_allow_html=True)
+                                else:
+                                    st.caption("등록된 현장 사진이 없습니다.")
 
 except Exception as e:
     st.error(f"오류가 발생했습니다: {e}")
 
 st.markdown("---")
-st.caption("© 2026 거래처 관리 시스템")
+st.caption("© 2026 거래처 관리 시스템 | 최종 업데이트: 2026-02-10")
