@@ -6,27 +6,24 @@ from datetime import datetime
 # 1. 페이지 설정
 st.set_page_config(page_title="세창 거래처 맵 Pro", layout="wide")
 
-# 2. 스타일 설정 (제목 크기 축소 및 여백 최적화)
+# 2. 스타일 설정 (제목 잘림 방지 및 모바일 최적화)
 st.markdown("""
     <style>
-    .block-container { padding-top: 1.5rem !important; } /* 상단 여백 추가 축소 */
-    
+    .block-container { padding-top: 2.5rem !important; } 
     .title-area { 
-        padding: 15px 0 10px 0; /* 위아래 여백 축소 */
+        padding: 20px 0 15px 0; 
         text-align: center; 
         width: 100%; 
+        overflow: visible; 
     }
-    
-    /* 제목 크기를 1.8 -> 1.4로 줄여 탭이 밀리지 않게 조정 */
     .main-title { 
         font-size: 1.4rem !important; 
         font-weight: bold; 
         color: #1E3A5F; 
-        line-height: 1.2; 
+        line-height: 1.6; 
         display: block; 
-        letter-spacing: -0.5px; /* 글자 간격 살짝 좁힘 */
+        letter-spacing: -0.5px;
     }
-    
     .client-name-small { font-size: 1.0rem !important; font-weight: bold; color: #333; margin-top: 5px; margin-bottom: 2px; }
     .item-tag { display: inline-block; background-color: #e1f5fe; color: #01579b; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-right: 4px; font-weight: bold; }
     .dept-red { color: #e74c3c; font-weight: bold; font-size: 0.9rem; }
@@ -35,9 +32,6 @@ st.markdown("""
     .info-content { font-size: 0.85rem; color: #333; margin-bottom: 8px; }
     .contact-card { padding: 8px; border-bottom: 1px solid #f0f0f0; margin-bottom: 5px; }
     .img-thumbnail { cursor: zoom-in; border-radius: 5px; border: 1px solid #ddd; margin-top: 5px; }
-    
-    /* 탭 간격 살짝 조정 (모바일 가독성) */
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -50,14 +44,13 @@ def get_chosung(text):
 
 # 3. 데이터 로드
 url = "https://docs.google.com/spreadsheets/d/1mo031g1DVN-pcJIXk3it6eLbJrSlezH0gIUnKHaQ698/edit?usp=sharing"
-
-# 제목 출력 영역
 st.markdown('<div class="title-area"><span class="main-title">🏢 세창 거래처 통합 관리 시스템</span></div>', unsafe_allow_html=True)
 
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df = conn.read(spreadsheet=url, ttl=0).fillna("")
 
+    # 날짜 데이터 처리
     if '마지막 방문일' in df.columns:
         df['마지막 방문일'] = pd.to_datetime(df['마지막 방문일'], errors='coerce')
 
@@ -67,7 +60,6 @@ try:
         if st.button("🔄 데이터 최신화"):
             st.cache_data.clear()
             st.rerun()
-        
         regions = ["전체"] + sorted(df['주소'].apply(lambda x: str(x).split()[0] if x else "").unique().tolist())
         sel_region = st.selectbox("🌍 지역 선택", [r for r in regions if r])
         search_q = st.text_input("🔍 거래처명 검색", placeholder="검색어 입력...")
@@ -96,7 +88,7 @@ try:
                         
                         with cols[j]:
                             with st.container(border=True):
-                                # 영업 주기 알림
+                                # [수정] 마지막 방문일이 있는 경우에만 메시지 표시
                                 if '마지막 방문일' in item and pd.notnull(item['마지막 방문일']):
                                     last_date = item['마지막 방문일'].to_pydatetime()
                                     today = datetime.now()
@@ -104,7 +96,7 @@ try:
                                     if diff >= 30: st.error(f"🚨 {diff}일 경과")
                                     elif diff >= 20: st.warning(f"🟡 {diff}일 지남")
                                     else: st.success(f"✅ {diff}일 (안정)")
-                                else: st.info("ℹ️ 방문 기록 없음")
+                                # 날짜가 없으면 아무런 st.info 등을 띄우지 않고 통과합니다.
 
                                 st.markdown(f'<p class="client-name-small">{item["거래처명"]}</p>', unsafe_allow_html=True)
                                 
@@ -118,7 +110,9 @@ try:
                                 with st.expander("👤 상세 정보/메모"):
                                     depts, names, phones = str(item.get('부서명','')).split('\n'), str(item.get('담당자','')).split('\n'), str(item.get('연락처','')).split('\n')
                                     for k in range(max(len(depts), len(names), len(phones))):
-                                        d, n, p = (depts[k] if k<len(depts) else "-"), (names[k] if k<len(names) else "-"), (phones[k] if k<len(phones) else "-")
+                                        d = depts[k].strip() if k < len(depts) else "-"
+                                        n = names[k].strip() if k < len(names) else "-"
+                                        p = phones[k].strip() if k < len(phones) else "-"
                                         st.markdown(f'<div class="contact-card"><span class="dept-red">{k+1}. {d}</span><br>{n} / <a href="tel:{p}" style="color:#333; text-decoration:none;">{p}</a></div>', unsafe_allow_html=True)
                                     
                                     parking = item.get('주차 및 진입 정보', '정보 없음')
@@ -134,7 +128,6 @@ try:
                                     """, unsafe_allow_html=True)
                                     
                                     st.text_area("📝 메모 기록", key=f"memo_{unique_id}", height=70)
-
                                     st.markdown("---")
                                     uploaded_file = st.file_uploader(f"📷 사진 업로드", type=['jpg', 'png', 'jpeg'], key=f"up_{unique_id}")
                                     if uploaded_file:
