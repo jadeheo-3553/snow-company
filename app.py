@@ -1,43 +1,23 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import re
 
-# 1. 페이지 설정 및 인라인 스타일 (별표 위치 강제 고정)
+# 1. 페이지 설정
 st.set_page_config(page_title="거래처 관리 Pro", layout="wide")
 
+# 스타일 설정 (이름 옆 별표 고정용)
 st.markdown("""
     <style>
-    /* 전체 여백 최소화 */
     .block-container { padding: 1rem !important; }
-    
-    /* [핵심] 이름과 별표를 한 줄로 강제 결합 */
-    .client-box {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        margin-bottom: 2px;
-    }
     .client-name {
-        font-size: 1.05rem !important;
+        font-size: 1.0rem !important;
         font-weight: bold;
-        color: #1E3A5F;
         margin: 0 !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
-    
-    /* 체크박스를 별표처럼 보이게 커스텀 (버튼 밀림 방지) */
-    .stCheckbox { margin-bottom: 0px !important; }
-    .stCheckbox label { font-size: 1.2rem !important; margin-bottom: 0px !important; }
-
-    /* 주소 및 메모 슬림화 */
-    .addr-text { color: #007bff; text-decoration: none; font-size: 0.82rem; }
-    .memo-card { 
-        background-color: #f8f9fa; 
-        padding: 8px; 
-        border-radius: 5px; 
-        border-left: 3px solid #ff4b4b; 
-        margin-top: 5px;
-    }
+    .stCheckbox { margin-bottom: 0px !important; display: flex; justify-content: flex-end; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -59,26 +39,25 @@ try:
 
     if 'my_favs' not in st.session_state: st.session_state.my_favs = set()
 
-    # 3. [신규 방식] 탭 필터 - 공간 소모 0에 가까움
+    # 3. 가나다 필터 (탭 방식 유지)
     chosung_list = ["전체", "ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ", "ㅂ", "ㅅ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ", "A-Z"]
-    tabs = st.tabs(chosung_list) # 버튼 대신 탭을 사용해 깔끔하게 정렬
+    tabs = st.tabs(chosung_list)
 
-    # 4. 필터링 및 리스트 출력
     for idx, tab in enumerate(tabs):
         with tab:
-            search_q = st.text_input("🔍 검색", placeholder="거래처명/주소...", key=f"search_{idx}", label_visibility="collapsed")
+            tab_name = chosung_list[idx]
+            # 탭별 검색창 (공간 절약형)
+            search_q = st.text_input("", placeholder="🔍 검색어...", key=f"search_{tab_name}", label_visibility="collapsed")
             
-            # 필터링 로직
+            # 데이터 필터링
             f_df = df.copy()
-            current_chosung = chosung_list[idx]
-            
             if search_q:
                 f_df = f_df[f_df['거래처명'].str.contains(search_q, na=False) | f_df['주소'].str.contains(search_q, na=False)]
-            if current_chosung != "전체":
-                if current_chosung == "A-Z":
+            if tab_name != "전체":
+                if tab_name == "A-Z":
                     f_df = f_df[f_df['거래처명'].str.contains(r'^[a-zA-Z]', na=False)]
                 else:
-                    f_df = f_df[f_df['거래처명'].apply(lambda x: get_chosung(x) == current_chosung)]
+                    f_df = f_df[f_df['거래처명'].apply(lambda x: get_chosung(x) == tab_name)]
 
             # 즐겨찾기 정렬
             f_df['is_fav'] = f_df['거래처명'].apply(lambda x: x in st.session_state.my_favs)
@@ -93,35 +72,40 @@ try:
                         item = rows[i + j]
                         with cols[j]:
                             with st.container(border=True):
-                                # [핵심 해결] 체크박스 방식으로 이름 옆에 별표 고정
                                 name = item['거래처명']
                                 
-                                # 이름과 체크박스(별표)를 한 열에 나란히 배치
+                                # [오류 해결] key값에 tab_name을 추가하여 중복 방지
                                 n_c1, n_c2 = st.columns([0.85, 0.15])
                                 with n_c1:
                                     st.markdown(f'<p class="client-name">{name}</p>', unsafe_allow_html=True)
                                 with n_c2:
-                                    # 버튼이 아닌 체크박스를 사용하여 밀림 방지
-                                    is_f = st.checkbox("⭐", value=(name in st.session_state.my_favs), key=f"chk_{name}_{i+j}", label_visibility="collapsed")
-                                    if is_f: st.session_state.my_favs.add(name)
+                                    # 별표 아이콘으로 체크박스 구현
+                                    is_f = st.checkbox("⭐", value=(name in st.session_state.my_favs), 
+                                                       key=f"chk_{name}_{tab_name}_{i+j}", 
+                                                       label_visibility="collapsed")
+                                    
+                                    # 상태 변화 감지 및 반영
+                                    if is_f and name not in st.session_state.my_favs:
+                                        st.session_state.my_favs.add(name)
+                                        st.rerun()
                                     elif not is_f and name in st.session_state.my_favs:
                                         st.session_state.my_favs.remove(name)
                                         st.rerun()
 
-                                # 지도 연결
                                 addr = item['주소']
-                                st.markdown(f"📍 <a href='https://map.naver.com/v5/search/{addr}' target='_blank' class='addr-text'>{addr}</a>", unsafe_allow_html=True)
+                                st.markdown(f"📍 <a href='https://map.naver.com/v5/search/{addr}' target='_blank' style='font-size:0.8rem; color:#007bff; text-decoration:none;'>{addr}</a>", unsafe_allow_html=True)
 
-                                with st.expander("👤 담당자/메모"):
-                                    depts = str(item['부서명']).split('\n')
-                                    names = str(item['담당자']).split('\n')
-                                    phones = str(item['연락처']).split('\n')
-                                    for k in range(max(len(depts), len(names), len(phones))):
+                                with st.expander("👤 정보/메모"):
+                                    depts = str(item.get('부서명', '')).split('\n')
+                                    names = str(item.get('담당자', '')).split('\n')
+                                    p_list = str(item.get('연락처', '')).split('\n')
+                                    
+                                    for k in range(max(len(depts), len(names), len(p_list))):
                                         d = depts[k].strip() if k < len(depts) else "-"
                                         n = names[k].strip() if k < len(names) else "-"
-                                        p = phones[k].strip() if k < len(phones) else "-"
-                                        st.markdown(f'<div class="memo-card"><b>{k+1}. {d}</b><br>👤 {n} | 📞 <a href="tel:{p}">{p}</a></div>', unsafe_allow_html=True)
-                                        st.text_area(f"📝 {n} 메모", key=f"memo_{name}_{k}", height=60)
+                                        p = p_list[k].strip() if k < len(p_list) else "-"
+                                        st.markdown(f'**{k+1}. {d}** | {n} | [📞] (tel:{p})')
+                                        st.text_area("📝 메모", key=f"memo_{name}_{tab_name}_{k}", height=60, label_visibility="collapsed")
 
 except Exception as e:
-    st.error(f"오류: {e}")
+    st.error(f"오류가 발생했습니다: {e}")
