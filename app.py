@@ -5,38 +5,46 @@ import pandas as pd
 # 1. 페이지 설정
 st.set_page_config(page_title="거래처 관리 Pro", layout="wide")
 
-# 2. 스타일 설정 (타이틀 잘림 해결 및 부서명 강조)
+# 2. 스타일 설정 (거래처명 축소 및 타이틀 정렬)
 st.markdown("""
     <style>
-    /* 상단 타이틀 잘림 방지: 여백과 높이 확보 */
+    /* 타이틀 잘림 방지 및 중앙 정렬 */
     .title-area {
-        padding: 50px 0 30px 0;
+        padding: 45px 0 20px 0;
         text-align: center;
-        width: 100%;
     }
     .main-title { 
-        font-size: 2.2rem !important; 
+        font-size: 1.8rem !important; 
         font-weight: bold; 
         color: #1E3A5F;
-        margin: 0;
-        display: block;
-        line-height: 1.6;
     }
     
-    /* 부서명 빨간색 & 레이아웃 */
-    .dept-red { color: #e74c3c; font-weight: bold; font-size: 1rem; }
+    /* [요청] 거래처명 글자 크기 반으로 축소 */
+    .client-name-small {
+        font-size: 1.0rem !important; /* 기존보다 절반 크기 */
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 5px;
+    }
+    
+    /* 부서명 빨간색 강조 */
+    .dept-red { color: #e74c3c; font-weight: bold; font-size: 0.9rem; }
     .contact-card { 
-        padding: 10px;
+        padding: 8px;
         border-bottom: 1px solid #f0f0f0;
-        margin-bottom: 8px;
+        margin-bottom: 5px;
     }
-    
-    /* 썸네일 클릭 유도 스타일 */
-    .thumb-text { font-size: 0.8rem; color: #888; margin-top: 4px; }
+
+    /* 이미지 썸네일 스타일 */
+    .img-thumbnail {
+        cursor: zoom-in;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+        margin-top: 10px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 초성 추출 함수
 def get_chosung(text):
     if not text or pd.isna(text): return ""
     CHOSUNG_LIST = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
@@ -46,50 +54,39 @@ def get_chosung(text):
 
 # 3. 데이터 로드
 url = "https://docs.google.com/spreadsheets/d/1mo031g1DVN-pcJIXk3it6eLbJrSlezH0gIUnKHaQ698/edit?usp=sharing"
-
-# 타이틀 출력 (CSS 클래스 적용)
 st.markdown('<div class="title-area"><span class="main-title">🏢 거래처 통합 관리</span></div>', unsafe_allow_html=True)
 
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     df = conn.read(spreadsheet=url, ttl=0).fillna("")
 
-    # 4. 사이드바 (지역 필터 및 기능 추가)
+    # 4. 사이드바 (지역 필터)
     with st.sidebar:
-        st.header("📍 상세 필터")
-        # 지역별 필터
-        all_regions = ["전체"] + sorted(df['주소'].apply(lambda x: x.split()[0]).unique().tolist())
-        selected_region = st.selectbox("🌍 지역별 보기", all_regions)
-        
-        # 검색 기능
-        search_q = st.text_input("🔍 거래처/주소 검색", placeholder="검색어를 입력하세요...")
-        
-        if st.button("🔄 필터 초기화"):
-            st.rerun()
+        st.header("📍 상세 검색")
+        regions = ["전체"] + sorted(df['주소'].apply(lambda x: x.split()[0]).unique().tolist())
+        sel_region = st.selectbox("🌍 지역 선택", regions)
+        search_q = st.text_input("🔍 거래처명 검색", placeholder="검색어 입력...")
 
-    # 5. 가나다 탭 필터 (디자인 유지)
+    # 5. 가나다 탭 필터
     chosung_list = ["전체", "ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ", "ㅂ", "ㅅ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ", "A-Z"]
     tabs = st.tabs(chosung_list)
 
     for idx, tab in enumerate(tabs):
         with tab:
             tab_name = chosung_list[idx]
-            
-            # 필터링 로직
             f_df = df.copy()
-            if selected_region != "전체":
-                f_df = f_df[f_df['주소'].str.startswith(selected_region)]
             
+            if sel_region != "전체":
+                f_df = f_df[f_df['주소'].str.startswith(sel_region)]
             if tab_name != "전체":
                 if tab_name == "A-Z":
                     f_df = f_df[f_df['거래처명'].str.contains(r'^[a-zA-Z]', na=False)]
                 else:
                     f_df = f_df[f_df['거래처명'].apply(lambda x: get_chosung(x) == tab_name)]
-            
             if search_q:
-                f_df = f_df[f_df['거래처명'].str.contains(search_q, na=False) | f_df['주소'].str.contains(search_q, na=False)]
+                f_df = f_df[f_df['거래처명'].str.contains(search_q, na=False)]
 
-            # 6. 결과 출력 (그리드 방식)
+            # 6. 리스트 출력
             rows = f_df.to_dict('records')
             for i in range(0, len(rows), 3):
                 cols = st.columns(3)
@@ -98,22 +95,21 @@ try:
                         item = rows[i + j]
                         with cols[j]:
                             with st.container(border=True):
-                                # 즐겨찾기 없이 거래처명만 깔끔하게 노출
-                                st.subheader(item['거래처명'])
+                                # [요청 해결] 거래처명 크기 축소 적용
+                                st.markdown(f'<p class="client-name-small">{item["거래처명"]}</p>', unsafe_allow_html=True)
                                 
                                 addr = item['주소']
-                                st.markdown(f"📍 <a href='https://map.naver.com/v5/search/{addr}' target='_blank' style='font-size:0.85rem; color:#007bff; text-decoration:none;'>{addr}</a>", unsafe_allow_html=True)
+                                st.markdown(f"📍 <a href='https://map.naver.com/v5/search/{addr}' target='_blank' style='font-size:0.8rem; color:#007bff; text-decoration:none;'>{addr}</a>", unsafe_allow_html=True)
 
-                                with st.expander("👤 정보/메모 보기"):
-                                    # 요청하신 담당자 레이아웃 (부서명 빨간색)
+                                with st.expander("👤 정보/메모"):
                                     depts = str(item.get('부서명', '')).split('\n')
                                     names = str(item.get('담당자', '')).split('\n')
-                                    p_list = str(item.get('연락처', '')).split('\n')
+                                    phones = str(item.get('연락처', '')).split('\n')
                                     
-                                    for k in range(max(len(depts), len(names), len(p_list))):
+                                    for k in range(max(len(depts), len(names), len(phones))):
                                         d = depts[k].strip() if k < len(depts) else "-"
                                         n = names[k].strip() if k < len(names) else "-"
-                                        p = p_list[k].strip() if k < len(p_list) else "-"
+                                        p = phones[k].strip() if k < len(phones) else "-"
                                         
                                         st.markdown(f"""
                                         <div class="contact-card">
@@ -121,14 +117,17 @@ try:
                                             {n} / <a href="tel:{p}" style="color:#333; text-decoration:none;">{p}</a>
                                         </div>
                                         """, unsafe_allow_html=True)
-                                        st.text_area("📝 메모", key=f"memo_{item['거래처명']}_{tab_name}_{k}", height=60, label_visibility="collapsed")
+                                        st.text_area("📝 메모", key=f"m_{item['거래처명']}_{tab_name}_{k}", height=60, label_visibility="collapsed")
                                     
-                                    # [핵심] 클릭 시 즉시 확대되는 이미지
                                     img_url = item.get('이미지', '')
                                     if img_url:
                                         st.markdown("---")
-                                        # use_container_width를 통해 클릭 시 즉시 전체화면 라이트박스 활성화
-                                        st.image(img_url, caption="📷 클릭 시 즉시 확대", width=120, use_container_width=False)
+                                        st.markdown(f"""
+                                            <a href="{img_url}" target="_blank">
+                                                <img src="{img_url}" class="img-thumbnail" width="100">
+                                            </a>
+                                            <p style="font-size:0.7rem; color:gray;">▲ 클릭 시 확대</p>
+                                        """, unsafe_allow_html=True)
 
 except Exception as e:
-    st.error(f"데이터 연결 오류: {e}")
+    st.error(f"오류: {e}")
