@@ -5,28 +5,18 @@ import pandas as pd
 # 1. 페이지 설정
 st.set_page_config(page_title="거래처 관리 Pro", layout="wide")
 
-# 2. 스타일 설정 (태그 및 추가 정보 레이아웃)
+# 2. 스타일 설정
 st.markdown("""
     <style>
     .block-container { padding-top: 2rem !important; }
     .title-area { padding: 25px 0 15px 0; text-align: center; width: 100%; }
     .main-title { font-size: 1.8rem !important; font-weight: bold; color: #1E3A5F; line-height: 1.4; display: block; }
-    
-    /* 거래처명 & 태그 스타일 */
     .client-name-small { font-size: 1.0rem !important; font-weight: bold; color: #333; margin-bottom: 2px; }
-    .item-tag { 
-        display: inline-block; background-color: #e1f5fe; color: #01579b; 
-        padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-right: 4px; font-weight: bold;
-    }
-    
-    /* 부서명 빨간색 강조 */
+    .item-tag { display: inline-block; background-color: #e1f5fe; color: #01579b; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-right: 4px; font-weight: bold; }
     .dept-red { color: #e74c3c; font-weight: bold; font-size: 0.9rem; }
-    
-    /* 추가 정보 섹션 스타일 */
     .info-box { background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-top: 10px; border-left: 4px solid #1E3A5F; }
     .info-title { font-size: 0.85rem; font-weight: bold; color: #555; margin-bottom: 3px; }
     .info-content { font-size: 0.85rem; color: #333; margin-bottom: 8px; }
-    
     .contact-card { padding: 8px; border-bottom: 1px solid #f0f0f0; margin-bottom: 5px; }
     .img-thumbnail { cursor: zoom-in; border-radius: 5px; border: 1px solid #ddd; margin-top: 5px; }
     </style>
@@ -66,30 +56,29 @@ try:
         with tab:
             tab_name = chosung_list[idx]
             f_df = df.copy()
-            
-            # 필터 로직
             if sel_region != "전체": f_df = f_df[f_df['주소'].str.startswith(sel_region)]
             if tab_name != "전체":
                 if tab_name == "A-Z": f_df = f_df[f_df['거래처명'].str.contains(r'^[a-zA-Z]', na=False)]
                 else: f_df = f_df[f_df['거래처명'].apply(lambda x: get_chosung(x) == tab_name)]
             if search_q: f_df = f_df[f_df['거래처명'].str.contains(search_q, na=False)]
 
-            # 6. 출력
+            # 6. 리스트 출력
             rows = f_df.to_dict('records')
             for i in range(0, len(rows), 3):
                 cols = st.columns(3)
                 for j in range(3):
                     if i + j < len(rows):
                         item = rows[i + j]
+                        # 중복 방지를 위한 유니크한 키 생성
+                        unique_id = f"{item['거래처명']}_{idx}_{i}_{j}"
+                        
                         with cols[j]:
                             with st.container(border=True):
-                                # 거래처명
                                 st.markdown(f'<p class="client-name-small">{item["거래처명"]}</p>', unsafe_allow_html=True)
                                 
-                                # 4. 주요 취급 품목 (태그) 표시
+                                # 태그 표시
                                 if '취급품목' in item and item['취급품목']:
-                                    tags = str(item['취급품목']).split(',')
-                                    tag_html = "".join([f'<span class="item-tag">{t.strip()}</span>' for t in tags])
+                                    tag_html = "".join([f'<span class="item-tag">{t.strip()}</span>' for t in str(item['취급품목']).split(',')])
                                     st.markdown(f'<div>{tag_html}</div>', unsafe_allow_html=True)
 
                                 addr = item['주소']
@@ -102,29 +91,30 @@ try:
                                         d, n, p = (depts[k] if k<len(depts) else "-"), (names[k] if k<len(names) else "-"), (phones[k] if k<len(phones) else "-")
                                         st.markdown(f'<div class="contact-card"><span class="dept-red">{k+1}. {d}</span><br>{n} / <a href="tel:{p}" style="color:#333; text-decoration:none;">{p}</a></div>', unsafe_allow_html=True)
                                     
-                                    # [추가] 1 & 2. 주차 및 특이사항 (시트에 해당 열이 있어야 함)
+                                    # [해결] 시트의 실제 열 이름과 일치시킴
+                                    parking = item.get('주차 및 진입 정보', item.get('주차정보', '정보 없음'))
+                                    issue = item.get('거래처 성향 / 특이사항', item.get('특이사항', '내용 없음'))
+                                    
                                     st.markdown(f"""
                                     <div class="info-box">
                                         <div class="info-title">🚗 주차 및 진입 정보</div>
-                                        <div class="info-content">{item.get('주차정보', '정보 없음')}</div>
+                                        <div class="info-content">{parking if parking else "정보 없음"}</div>
                                         <div class="info-title">⚠️ 거래처 성향/특이사항</div>
-                                        <div class="info-content">{item.get('특이사항', '내용 없음')}</div>
+                                        <div class="info-content">{issue if issue else "내용 없음"}</div>
                                     </div>
                                     """, unsafe_allow_html=True)
                                     
-                                    st.text_area("📝 실시간 메모", key=f"m_{item['거래처명']}_{i+j}", height=70)
+                                    st.text_area("📝 메모 기록", key=f"memo_{unique_id}", height=70)
 
-                                    # [추가] 3. 현장 사진 바로 업로드 기능
                                     st.markdown("---")
-                                    uploaded_file = st.file_uploader(f"📷 현장 사진 촬영/업로드", type=['jpg', 'png', 'jpeg'], key=f"up_{item['거래처명']}")
+                                    # [해결] 파일 업로더 키 중복 방지
+                                    uploaded_file = st.file_uploader(f"📷 현장 사진 업로드", type=['jpg', 'png', 'jpeg'], key=f"up_{unique_id}")
                                     if uploaded_file:
-                                        st.image(uploaded_file, caption="방금 업로드한 사진", use_container_width=True)
-                                        st.info("💡 위 사진은 현재 앱 세션에만 표시됩니다. 시트 저장을 위해서는 링크 연동이 필요합니다.")
+                                        st.image(uploaded_file, caption="업로드된 사진", use_container_width=True)
 
-                                    # 기존 시트 등록 이미지
                                     img_url = item.get('이미지', '')
                                     if img_url:
                                         st.markdown(f'<a href="{img_url}" target="_blank"><img src="{img_url}" class="img-thumbnail" width="100"></a>', unsafe_allow_html=True)
 
 except Exception as e:
-    st.error(f"오류: {e}")
+    st.error(f"데이터 로드 중 오류 발생: {e}")
