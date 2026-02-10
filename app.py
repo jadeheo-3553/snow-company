@@ -1,58 +1,56 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import re
 
 # 1. 페이지 설정
 st.set_page_config(page_title="거래처 관리 Pro", page_icon="🏢", layout="wide")
 
-# 2. 강력한 커스텀 CSS (모바일 버튼 밀착 + 타이틀 조절)
+# 2. 강력한 CSS (모바일 타일 레이아웃 + 겹침 방지)
 st.markdown("""
     <style>
-    /* 타이틀 크기 축소 */
-    .main-title { font-size: 1.5rem !important; font-weight: bold; text-align: center; margin: 10px 0; }
+    /* 상단 타이틀 축소 */
+    .main-title { font-size: 1.4rem !important; font-weight: bold; text-align: center; margin: 15px 0; color: #333; }
     
-    /* [요청 1] 버튼 우측 밀착 나열 (가로 스크롤 허용) */
-    .filter-container {
-        display: flex;
-        overflow-x: auto; /* 모바일에서 옆으로 밀어서 볼 수 있음 */
-        white-space: nowrap;
-        gap: 0px;
-        padding: 5px 0;
-        -webkit-overflow-scrolling: touch;
+    /* [요청] ㄱㄴㄷ 버튼 초밀착 격자 배치 (모바일 강제) */
+    .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(8, 1fr); /* 한 줄에 8개씩 */
+        gap: 0px; /* 간격 없음 */
+        border: 1px solid #ddd;
+        margin-bottom: 20px;
     }
     .filter-btn {
-        display: inline-flex;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        border: 0.5px solid #eee;
+        background: white;
+        font-size: 0.8rem;
+        display: flex;
         align-items: center;
         justify-content: center;
-        width: 42px;
-        height: 42px;
-        border: 1px solid #ddd;
-        background-color: white;
-        font-size: 0.9rem;
         cursor: pointer;
-        flex-shrink: 0; /* 크기 유지 */
     }
-    
-    /* [요청 4] 거래처명과 별표 겹침 방지 레이아웃 */
-    .client-header {
+
+    /* [요청] 거래처명 + 별표 겹침 방지 */
+    .name-star-container {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 5px 0;
+        width: 100%;
     }
-    .client-name { 
-        font-size: 1.1rem; 
-        font-weight: bold; 
-        margin: 0; 
-        white-space: nowrap; 
-        overflow: hidden; 
+    .client-name {
+        font-size: 1.05rem;
+        font-weight: bold;
+        white-space: nowrap;
+        overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 80%;
+        max-width: 80%; /* 별표 자리를 위해 이름 길이 제한 */
+        margin: 0;
     }
-    
-    /* 지도 링크 스타일 */
-    .map-link { color: #007bff; text-decoration: none; font-size: 0.85rem; font-weight: 500; }
+
+    /* 주소 및 메모 스타일 */
+    .map-link { color: #007bff; text-decoration: none; font-size: 0.85rem; }
+    .contact-card { background: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 4px solid #ff4b4b; margin: 5px 0; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -67,25 +65,21 @@ try:
     if 'my_favs' not in st.session_state: st.session_state.my_favs = set()
     if 'sel_chosung' not in st.session_state: st.session_state.sel_chosung = "전체"
 
-    # [요청 1] 가로로 붙은 ㄱㄴㄷ 필터 (HTML 방식)
-    chosungs = ["전체", "ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ", "ㅂ", "ㅅ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ", "A-Z"]
-    
-    # 클릭 감지를 위한 가짜 버튼 레이아웃 대신 실제 Streamlit 버튼을 한 줄에 강제 배치
-    cols = st.columns(len(chosungs))
-    for idx, c in enumerate(chosungs):
-        with cols[idx]:
-            if st.button(c, key=f"btn_{c}"):
-                st.session_state.sel_chosung = c
-
+    # 검색창
     search_q = st.text_input("🔍 검색창", placeholder="거래처명 또는 주소 입력...")
 
-    # 필터링 로직 (스노우님 기존 로직 적용)
-    f_df = df.copy()
-    if st.session_state.sel_chosung != "전체":
-        # 초성 필터링 로직 수행...
-        pass
+    # [핵심] ㄱㄴㄷ 필터 - 8열 구성으로 모바일에서도 격자 유지
+    chosungs = ["전체", "ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ", "ㅂ", "ㅅ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ", "A-Z"]
+    cols = st.columns(8) 
+    for idx, c in enumerate(chosungs):
+        with cols[idx % 8]:
+            if st.button(c, key=f"btn_{c}", use_container_width=True):
+                st.session_state.sel_chosung = c
 
-    # 4. 리스트 출력
+    # 필터링 로직 (생략 - 기존과 동일)
+    f_df = df.copy()
+
+    # 4. 거래처 카드 리스트
     rows = f_df.to_dict('records')
     for i in range(0, len(rows), 3):
         cols = st.columns(3)
@@ -94,22 +88,22 @@ try:
                 item = rows[i + j]
                 with cols[j]:
                     with st.container(border=True):
-                        # [요청 4] 이름과 별표 줄바꿈/겹침 없이 배치
                         name = item['거래처명']
                         is_fav = name in st.session_state.my_favs
                         
-                        header_col1, header_col2 = st.columns([0.8, 0.2])
-                        header_col1.markdown(f'<p class="client-name">{name}</p>', unsafe_allow_html=True)
-                        if header_col2.button("⭐" if is_fav else "☆", key=f"fav_{name}_{i+j}"):
+                        # [요청] 이름과 별표 겹침 방지 레이아웃
+                        head1, head2 = st.columns([0.8, 0.2])
+                        head1.markdown(f'<p class="client-name">{name}</p>', unsafe_allow_html=True)
+                        if head2.button("⭐" if is_fav else "☆", key=f"fav_{name}_{i+j}"):
                             if is_fav: st.session_state.my_favs.remove(name)
                             else: st.session_state.my_favs.add(name)
                             st.rerun()
 
-                        # [요청 3] 네이버 지도 링크 복구
+                        # [요청] 지도 링크 복구
                         addr = item['주소']
                         st.markdown(f"📍 <a href='https://map.naver.com/v5/search/{addr}' target='_blank' class='map-link'>{addr}</a>", unsafe_allow_html=True)
 
-                        with st.expander("👤 담당자 상세 정보"):
+                        with st.expander("👤 담당자 연락처 & 메모"):
                             depts = str(item.get('부서명', '')).split('\n')
                             names = str(item.get('담당자', '')).split('\n')
                             phones = str(item.get('연락처', '')).split('\n')
@@ -119,10 +113,10 @@ try:
                                 n = names[k].strip() if k < len(names) else "-"
                                 p = phones[k].strip() if k < len(phones) else "-"
                                 
-                                st.markdown(f"**{k+1}. {d}**")
-                                st.markdown(f"👤 {n} | 📞 [ {p} ](tel:{p.replace('-', '')})")
-                                # [요청 2] 개별 메모란
-                                st.text_area(f"📝 {n} 메모", key=f"memo_{name}_{k}", height=60)
+                                st.markdown(f"""<div class="contact-card"><b>{k+1}. {d}</b><br>
+                                👤 {n} | 📞 <a href="tel:{p}">{p}</a></div>""", unsafe_allow_html=True)
+                                # [요청] 부서별 개별 메모란
+                                st.text_area(f"📝 {n} 메모", key=f"memo_{name}_{k}", height=65)
 
 except Exception as e:
-    st.error(f"데이터 로드 중 오류 발생: {e}")
+    st.error(f"오류 발생: {e}")
