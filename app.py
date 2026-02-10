@@ -5,23 +5,29 @@ import pandas as pd
 # 1. 페이지 설정
 st.set_page_config(page_title="거래처 관리 Pro", layout="wide")
 
-# 2. 스타일 설정 (거래처명 축소 및 타이틀 정렬)
+# 2. 스타일 설정 (상단 여백 최소화 및 기존 스타일 유지)
 st.markdown("""
     <style>
-    /* 타이틀 잘림 방지 및 중앙 정렬 */
+    /* 전체 컨테이너 여백 조정 */
+    .block-container { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+    
+    /* [요청] 타이틀 상단 빈 공간 최소화 */
     .title-area {
-        padding: 45px 0 20px 0;
+        padding: 5px 0 10px 0; /* 위쪽 여백을 5px로 극소화 */
         text-align: center;
+        width: 100%;
     }
     .main-title { 
-        font-size: 1.8rem !important; 
+        font-size: 1.7rem !important; 
         font-weight: bold; 
         color: #1E3A5F;
+        margin: 0;
+        line-height: 1.2;
     }
     
-    /* [요청] 거래처명 글자 크기 반으로 축소 */
+    /* 거래처명 글자 크기 (기존 반으로 줄인 상태 유지) */
     .client-name-small {
-        font-size: 1.0rem !important; /* 기존보다 절반 크기 */
+        font-size: 1.0rem !important;
         font-weight: bold;
         color: #333;
         margin-bottom: 5px;
@@ -40,7 +46,7 @@ st.markdown("""
         cursor: zoom-in;
         border-radius: 5px;
         border: 1px solid #ddd;
-        margin-top: 10px;
+        margin-top: 5px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -52,7 +58,7 @@ def get_chosung(text):
     if 0 <= char_code <= 11171: return CHOSUNG_LIST[char_code // 588]
     return str(text)[0].upper()
 
-# 3. 데이터 로드
+# 3. 데이터 로드 및 타이틀 출력
 url = "https://docs.google.com/spreadsheets/d/1mo031g1DVN-pcJIXk3it6eLbJrSlezH0gIUnKHaQ698/edit?usp=sharing"
 st.markdown('<div class="title-area"><span class="main-title">🏢 거래처 통합 관리</span></div>', unsafe_allow_html=True)
 
@@ -66,6 +72,8 @@ try:
         regions = ["전체"] + sorted(df['주소'].apply(lambda x: x.split()[0]).unique().tolist())
         sel_region = st.selectbox("🌍 지역 선택", regions)
         search_q = st.text_input("🔍 거래처명 검색", placeholder="검색어 입력...")
+        if st.button("🔄 필터 초기화"):
+            st.rerun()
 
     # 5. 가나다 탭 필터
     chosung_list = ["전체", "ㄱ", "ㄴ", "ㄷ", "ㄹ", "ㅁ", "ㅂ", "ㅅ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ", "A-Z"]
@@ -95,7 +103,6 @@ try:
                         item = rows[i + j]
                         with cols[j]:
                             with st.container(border=True):
-                                # [요청 해결] 거래처명 크기 축소 적용
                                 st.markdown(f'<p class="client-name-small">{item["거래처명"]}</p>', unsafe_allow_html=True)
                                 
                                 addr = item['주소']
